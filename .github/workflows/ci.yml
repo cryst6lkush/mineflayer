@@ -20,6 +20,13 @@ jobs:
       uses: actions/setup-node@v1.4.4
       with:
         node-version: 24
+    # no lockfile is committed, so cache the npm download cache rather than
+    # node_modules (which must be rebuilt per resolution anyway)
+    - name: Cache npm downloads
+      uses: actions/cache@v4
+      with:
+        path: ~/.npm
+        key: npm-${{ hashFiles('package.json') }}
     - run: npm i && npm run lint
   
   PrepareSupportedVersions:
@@ -64,8 +71,23 @@ jobs:
         with:
           java-version: 25
           java-package: jre
+      - name: Cache npm downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ hashFiles('package.json') }}
       - name: Install Dependencies
         run: npm install
+      # server jars are immutable per version, so the group's version list is
+      # the whole key; a hit lets the tests start without touching Mojang
+      - name: Compute server jar cache key
+        id: jar-cache-key
+        run: echo "key=server-jars-$(echo '${{ matrix.versions }}' | tr ' ' '_')" >> "$GITHUB_OUTPUT"
+      - name: Cache server jars
+        uses: actions/cache@v4
+        with:
+          path: server_jars
+          key: ${{ steps.jar-cache-key.outputs.key }}
 
       - name: Start Tests
         run: |
